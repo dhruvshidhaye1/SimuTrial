@@ -27,14 +27,8 @@ disease_area = st.selectbox(
     ["Cardiology", "Oncology", "Neurology", "Endocrinology", "Infectious Diseases", "Other"]
 )
 
-st.text('Select Targeted Demographics')
-includeAfrican = st.checkbox('African American')
-includeCaucasian = st.checkbox('Caucasian')
-includeHispanic = st.checkbox('Hispanic')
-includeAsian = st.checkbox('Asian')
-includeOther = st.checkbox('Other')
-
-location = st.text_input("Enter Location (5 Digit Zipcode)", 0)
+# Dropdown search for location
+location = st.selectbox("Enter Location (State)", ['Alabama','Alaska','American Samoa','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','District of Columbia','Florida','Georgia','Guam','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Marshall Islands','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Northern Mariana Islands','Ohio','Oklahoma','Oregon','Palau','Pennsylvania','Puerto Rico','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virgin Island','Virginia','Washington','West Virginia','Wisconsin','Wyoming'])
 
 
 # Demographic targeting checkboxes
@@ -42,6 +36,13 @@ st.subheader("Demographic Targeting")
 age_group = st.checkbox("Target by Age Group")
 gender = st.checkbox("Target by Gender")
 ethnicity = st.checkbox("Target by Ethnicity")
+if ethnicity:
+    st.text('Select Targeted Demographics')
+    include_african = st.checkbox('African American')
+    include_caucasian = st.checkbox('Caucasian')
+    include_hispanic = st.checkbox('Hispanic')
+    include_asian = st.checkbox('Asian')
+    include_other = st.checkbox('Other')
 
 # Number input for study size
 study_size = st.number_input("Study Size", min_value=1, max_value=10000, value=100)
