@@ -6,7 +6,7 @@ with open('column_mapping.json', 'r') as f:
     column_mapping = json.load(f)
 
 # Load your dataset
-df = pl.read_csv('data_upload.csv')
+df = pl.read_csv('diabetes_dataset.csv')
 
 # Function to rename columns based on mapping
 def normalize_columns(df, mapping):

@@ -1,7 +1,8 @@
 {
     "age": ["Age", "age", "dob"],
     "gender": ["Gender", "sex", "Sex"],
-    "race_ethnicity": ["Race", "Ethnicity", "race_ethnicity"],
+    "race_ethnicity": ["Race", "Ethnicity", "race_ethnicity", "race", "race:AfricanAmerican", "race:Asian", "race:Caucasian", "race:Hispanic", "race:Other"],
     "region": ["Location", "region", "Region"],
-    "health_issues": ["Conditions", "health_conditions", "Issues"]
+    "health_issues": ["Conditions", "health_conditions", "Issues", "hypertension", "heart_disease"]
 }
+

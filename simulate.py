@@ -1,6 +1,23 @@
+import streamlit as st
+import pandas as pd
+import polars as pl
+import json
 from mesa import Agent, Model
 from mesa.time import RandomActivation
 import random
+
+# Load JSON mapping
+with open('column_mapping.json', 'r') as f:
+    column_mapping = json.load(f)
+
+# Function to normalize columns
+def normalize_columns(df, mapping):
+    for standard_name, possible_names in mapping.items():
+        for col in possible_names:
+            if col in df.columns:
+                df = df.rename({col: standard_name})
+                break
+    return df
 
 class PatientAgent(Agent):
     def __init__(self, unique_id, model, age, gender, race, region, health_issues):
@@ -36,6 +53,24 @@ class RecruitmentModel(Model):
     def step(self):
         self.schedule.step()
 
-# Example usage
-model = RecruitmentModel(num_agents=100, consent_rate=0.5)
-for i in range(10):  # Run for 10 steps
+st.title("Patient Recruitment Simulation")
+
+# File uploader
+data_file = st.file_uploader("Upload Data File", type=["csv", "tsv"])
+
+if data_file is not None:
+    df = pl.read_csv(data_file)
+    df_normalized = normalize_columns(df, column_mapping)
+    st.write("Data Preview:", df_normalized.head().to_pandas())
+
+    # Inputs for simulation
+    study_size = st.number_input("Study Size", min_value=1, max_value=10000, value=100)
+    consent_rate = st.slider("Consent Rate", 0.0, 1.0, 0.5)
+    num_simulations = st.number_input("Number of Simulations", min_value=1, max_value=100, value=10)
+
+    if st.button("Run Simulation"):
+        st.write(f"Running simulation with {study_size} agents and consent rate of {consent_rate}...")
+        model = RecruitmentModel(num_agents=study_size, consent_rate=consent_rate)
+        for i in range(num_simulations):
+            model.step()
+        st.write("Simulation completed.")
