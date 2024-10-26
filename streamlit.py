@@ -27,11 +27,15 @@ disease_area = st.selectbox(
     ["Cardiology", "Oncology", "Neurology", "Endocrinology", "Infectious Diseases", "Other"]
 )
 
-# Dropdown for location
-location = st.selectbox(
-    "Location",
-    ["North America", "Europe", "Asia", "South America", "Africa", "Australia"]
-)
+st.text('Select Targeted Demographics')
+includeAfrican = st.checkbox('African American')
+includeCaucasian = st.checkbox('Caucasian')
+includeHispanic = st.checkbox('Hispanic')
+includeAsian = st.checkbox('Asian')
+includeOther = st.checkbox('Other')
+
+location = st.text_input("Enter Location (5 Digit Zipcode)", 0)
+
 
 # Demographic targeting checkboxes
 st.subheader("Demographic Targeting")
