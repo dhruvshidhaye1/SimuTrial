@@ -1,0 +1,7 @@
+{
+    "age": ["Age", "age", "dob"],
+    "gender": ["Gender", "sex", "Sex"],
+    "race_ethnicity": ["Race", "Ethnicity", "race_ethnicity"],
+    "region": ["Location", "region", "Region"],
+    "health_issues": ["Conditions", "health_conditions", "Issues"]
+}

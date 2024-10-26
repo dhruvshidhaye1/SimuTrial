@@ -1,0 +1,7 @@
+polars
+numpy
+pandas
+scipy
+mesa
+matplotlib
+streamlit
