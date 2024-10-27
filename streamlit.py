@@ -1,67 +1,104 @@
 import streamlit as st
 import pandas as pd
+import polars as pl
+import json
+from mesa import Agent, Model
+from mesa.time import RandomActivation
+import random
+import numpy as np
+import time
 
-# Set the background color to #04668D
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #04668D;
+# Load JSON mapping
+column_mapping = {
+  "age": ["Age", "age", "dob"],
+  "gender": ["Gender", "sex", "Sex"],
+  "race_ethnicity": ["Race", "Ethnicity", "race_ethnicity", "race", "race:AfricanAmerican", "race:Asian", "race:Caucasian", "race:Hispanic", "race:Other"],
+  "region": ["Location", "region", "Region"],
+  "health_issues": ["Conditions", "health_conditions", "Issues", "hypertension", "heart_disease"]
+}
+
+# Function to normalize columns
+def normalize_columns(df, mapping):
+    for standard_name, possible_names in mapping.items():
+        for col in possible_names:
+            if col in df.columns:
+                df = df.rename({col: standard_name})
+                break
+    return df
+
+class PatientAgent(Agent):
+    def __init__(self, unique_id, model, age, gender, race, region, health_issues):
+        super().__init__(unique_id, model)
+        self.age = age
+        self.gender = gender
+        self.race = race
+        self.region = region
+        self.health_issues = health_issues
+        self.consented = False
+
+    def step(self):
+        # Determine consent based on consent rate range
+        consent_probability = random.uniform(self.model.consent_rate_min, self.model.consent_rate_max)
+        self.consented = random.random() < consent_probability
+
+class RecruitmentModel(Model):
+    def __init__(self, df, consent_rate_min, consent_rate_max):
+        self.df = df
+        self.consent_rate_min = consent_rate_min
+        self.consent_rate_max = consent_rate_max
+        self.schedule = RandomActivation(self)
+
+        # Create agents based on the DataFrame
+        for i, row in df.iterrows():
+            age = row.get('age', None)
+            gender = row.get('gender', None)
+            race = row.get('race_ethnicity', None)
+            region = row.get('region', None)
+            health_issues = row.get('health_issues', None)
+            
+            agent = PatientAgent(i, self, age, gender, race, region, health_issues)
+            self.schedule.add(agent)
+
+    def step(self):
+        self.schedule.step()
+
+# Function to run multiple simulations and calculate scores
+def run_simulations(df, consent_rate_min, consent_rate_max, num_simulations):
+    consent_results = []
+    for i in range(num_simulations):
+        model = RecruitmentModel(df, consent_rate_min, consent_rate_max)
+        for _ in range(1):  # Run for 1 step (as we only need to determine consent)
+            model.step()
+        consented_agents = sum([1 for agent in model.schedule.agents if agent.consented])
+        consent_results.append(consented_agents)
+        
+        # Update progress bar
+        st.session_state.progress.progress((i + 1) / num_simulations)
+    
+    # Calculate statistics
+    mean_consent = np.mean(consent_results)
+    confidence_interval = np.std(consent_results) * 1.96 / np.sqrt(num_simulations)
+    
+    return {
+        "mean_consent": mean_consent,
+        "confidence_interval": confidence_interval,
+        "consent_results": consent_results
     }
-    .title {
-        color: white;
-        font-size: 50px;
-        text-align: center;
-    }
-    .subtitle {
-        color: white;
-        font-size: 30px;
-        text-align: center;
-        margin-top: -20px;
-    }
-    .button {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    .connect-button button {
-        font-size: 20px;
-        padding: 15px;
-    }
-    .logo {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 20px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+
+# Streamlit App Configuration
+st.set_page_config(page_title="Patient Recruitment Simulation", layout="wide")
 
 # Add a place for the logo
-st.markdown('<div class="logo"><img src="https://via.placeholder.com/150" alt="Logo" width="150"></div>', unsafe_allow_html=True)
-
-# Title and subtitle
-st.markdown('<div class="title">Simu<span style="color: #00274D;">Trial</span></div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Pre-Trial Simulations and Analysis</div>', unsafe_allow_html=True)
+st.image("backtgroundSimuTrial.png", use_column_width=True)
 
 # File uploader for EMR connection
-emr_connected = False
+data_file = st.file_uploader("Upload Data File", type=["csv", "tsv"])
 
-st.markdown('<div class="button connect-button">', unsafe_allow_html=True)
-connect_emr = st.button("Connect to EMR")
-st.markdown('</div>', unsafe_allow_html=True)
+if data_file is not None:
+    df = pl.read_csv(data_file)
+    df_normalized = normalize_columns(df, column_mapping)
+    st.write("Data Preview:", df_normalized.head().to_pandas())
 
-if connect_emr:
-    data_file = st.file_uploader("Upload Data File", type=["csv", "tsv"])
-    if data_file is not None:
-        df = pd.read_csv(data_file)
-        st.write("Data Preview:")
-        st.write(df.head())
-        emr_connected = True
-
-# Move the recruitment settings outside the button press block
-if emr_connected:
     # Input elements for recruitment settings
     st.subheader("Recruitment Settings")
 
@@ -70,7 +107,7 @@ if emr_connected:
     consent_rate_max = st.slider("Consent Rate - Max", 0.0, 1.0, 0.8)
 
     # Number of simulations
-    num_simulations = st.number_input("Number of Simulations", min_value=1, max_value=100, value=10)
+    num_simulations = st.number_input("Number of Simulations", min_value=1, max_value=500, value=100)
 
     # Dropdown for disease area
     disease_area = st.selectbox(
@@ -99,5 +136,18 @@ if emr_connected:
 
     # Run Simulation button
     if st.button("Run Simulation"):
-        st.write(f"Running simulation with study size: {study_size}, consent rate range: {consent_rate_min}-{consent_rate_max}, disease area: {disease_area}, location: {location}, targeting: {'Age' if age_group else ''} {'Gender' if gender else ''} {'Ethnicity' if ethnicity else ''}")
-        # Placeholder for simulation code
+        # Initialize progress bar
+        st.session_state.progress = st.progress(0)
+        
+        # Convert Polars DataFrame to Pandas for compatibility with Mesa
+        df_normalized_pd = df_normalized.to_pandas()
+        
+        # Run the simulations
+        simulation_results = run_simulations(df_normalized_pd, consent_rate_min, consent_rate_max, num_simulations)
+        
+        # Display results
+        st.write(f"Mean Consent: {simulation_results['mean_consent']}")
+        st.write(f"Confidence Interval: +/- {simulation_results['confidence_interval']}")
+        
+        # Clear progress bar
+        st.session_state.progress.empty()
