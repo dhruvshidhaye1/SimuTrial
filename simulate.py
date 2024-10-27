@@ -5,6 +5,9 @@ import json
 from mesa import Agent, Model
 from mesa.time import RandomActivation
 import random
+import numpy
+
+df = pd.read_csv('editedclinical copy.csv')
 
 # Load JSON mapping
 with open('column_mapping.json', 'r') as f:
