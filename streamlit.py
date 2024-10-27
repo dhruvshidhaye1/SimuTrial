@@ -7,6 +7,7 @@ from mesa.time import RandomActivation
 import random
 import numpy as np
 import time
+import openai
 
 # Load JSON mapping
 column_mapping = {
@@ -65,34 +66,61 @@ class RecruitmentModel(Model):
 # Function to run multiple simulations and calculate scores
 def run_simulations(df, consent_rate_min, consent_rate_max, num_simulations):
     consent_results = []
+    staff_requirements = []
+    site_recommendations = []
+
     for i in range(num_simulations):
         model = RecruitmentModel(df, consent_rate_min, consent_rate_max)
         for _ in range(1):  # Run for 1 step (as we only need to determine consent)
             model.step()
         consented_agents = sum([1 for agent in model.schedule.agents if agent.consented])
-        consent_results.append(consented_agents)
+        consent_results.append(min(consented_agents, len(df)))
         
+        # Use a simple heuristic to estimate staff and sites
+        staff_needed = max(1, int(consented_agents / 50))  # Assume 1 staff per 50 consenting patients
+        sites_needed = max(1, int(consented_agents / 100))  # Assume 1 site per 100 consenting patients
+        staff_requirements.append(staff_needed)
+        site_recommendations.append(sites_needed)
+
         # Update progress bar
         st.session_state.progress.progress((i + 1) / num_simulations)
     
     # Calculate statistics
-    mean_consent = np.mean(consent_results)
-    confidence_interval = np.std(consent_results) * 1.96 / np.sqrt(num_simulations)
+    mean_consent_rate = (np.mean(consent_results) / len(df)) * 100
+    confidence_interval = (np.std(consent_results) * 1.96 / np.sqrt(num_simulations)) / len(df) * 100
+    mean_staff = np.mean(staff_requirements)
+    mean_sites = np.mean(site_recommendations)
     
     return {
-        "mean_consent": mean_consent,
+        "mean_consent_rate": mean_consent_rate,
         "confidence_interval": confidence_interval,
-        "consent_results": consent_results
+        "staff_requirements": staff_requirements,
+        "site_recommendations": site_recommendations,
+        "mean_staff": mean_staff,
+        "mean_sites": mean_sites
     }
+
 
 # Streamlit App Configuration
 st.set_page_config(page_title="Patient Recruitment Simulation", layout="wide")
 
-# Add a place for the logo
-st.image("backtgroundSimuTrial.png", use_column_width=True)
+# Display logo using Streamlit's st.image()
+st.image("backtgroundSimuTrial.png", width=150)
 
-# File uploader for EMR connection
-data_file = st.file_uploader("Upload Data File", type=["csv", "tsv"])
+# Set background color to dark gray and reset input colors to default
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #333333;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Single button for EMR connection
+data_file = st.file_uploader("Connect to EMR", type=["csv", "tsv"], label_visibility='collapsed')
 
 if data_file is not None:
     df = pl.read_csv(data_file)
@@ -146,8 +174,11 @@ if data_file is not None:
         simulation_results = run_simulations(df_normalized_pd, consent_rate_min, consent_rate_max, num_simulations)
         
         # Display results
-        st.write(f"Mean Consent: {simulation_results['mean_consent']}")
+        st.write(f"Mean Consent Rate: {simulation_results['mean_consent_rate']}%")
         st.write(f"Confidence Interval: +/- {simulation_results['confidence_interval']}")
+        st.write(f"Average Staff Needed: {simulation_results['mean_staff']}")
+        st.write(f"Average Sites Needed: {simulation_results['mean_sites']}")
+        
         
         # Clear progress bar
         st.session_state.progress.empty()
