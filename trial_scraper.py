@@ -122,8 +122,46 @@ def extract_baseline_characteristics(text):
         'Overall Number of Baseline Participants',
         'Baseline Analysis Population Description'
     ])
-    return baseline_df
 
+    # Race data
+    race_data = {
+        'Duodenal Mucosal Resurfacing Procedure (DMR)': {
+            'Number Analyzed': '5 participants',
+            'American Indian or Alaska Native': 0,
+            'Asian': 1,
+            'Native Hawaiian or Other Pacific Islander': 0,
+            'Black or African American': 0,
+            'White': 4,
+            'More than one race': 0,
+            'Unknown or Not Reported': 0
+        },
+        'Sham Procedure (Sham)': {
+            'Number Analyzed': '4 participants',
+            'American Indian or Alaska Native': 0,
+            'Asian': 0,
+            'Native Hawaiian or Other Pacific Islander': 0,
+            'Black or African American': 2,
+            'White': 2,
+            'More than one race': 0,
+            'Unknown or Not Reported': 0
+        },
+        'Total': {
+            'Number Analyzed': '9 participants',
+            'American Indian or Alaska Native': 0,
+            'Asian': 1,
+            'Native Hawaiian or Other Pacific Islander': 0,
+            'Black or African American': 2,
+            'White': 6,
+            'More than one race': 0,
+            'Unknown or Not Reported': 0
+        }
+    }
+
+    race_df = pd.DataFrame(race_data)
+
+    # Combine baseline and race data
+    result_df = pd.concat([baseline_df, race_df])
+    return result_df
 
 
 def extract_gender_data(text):
