@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import polars as pl
 import json
 from mesa import Agent, Model
@@ -6,8 +7,8 @@ from mesa.time import RandomActivation
 import random
 import numpy as np
 import time
-from bs4 import BeautifulSoup
 import requests
+from bs4 import BeautifulSoup
 
 # Load JSON mapping
 column_mapping = {
@@ -18,13 +19,23 @@ column_mapping = {
   "health_issues": ["Conditions", "health_conditions", "Issues", "hypertension", "heart_disease"]
 }
 
-# Function to normalize columns
+# Function to normalize columns with race aggregation
 def normalize_columns(df, mapping):
+    # Iterate through mapping dictionary to rename columns
     for standard_name, possible_names in mapping.items():
         for col in possible_names:
             if col in df.columns:
                 df = df.rename({col: standard_name})
                 break
+
+    # Handle race/ethnicity columns separately by aggregating into one
+    race_cols = [col for col in df.columns if col.startswith("race:")]
+    if race_cols:
+        df = df.with_columns(
+            pl.concat_list([df[col] for col in race_cols]).alias("race_ethnicity")
+        )
+        df = df.drop(race_cols)
+    
     return df
 
 class PatientAgent(Agent):
@@ -76,14 +87,9 @@ def run_simulations(df, consent_rate_min, consent_rate_max, num_simulations):
         consented_agents = sum([1 for agent in model.schedule.agents if agent.consented])
         consent_results.append(min(consented_agents, len(df)))
         
-        # Use web scraping to gather average staff and site information for clinical trials
-        avg_staff_per_site = get_average_staff_per_site()
-        avg_patients_per_site = get_average_patients_per_site()
-        
-        # Estimate staff and sites needed
-        sites_needed = max(1, int(consented_agents / avg_patients_per_site))
-        staff_needed = max(1, sites_needed * avg_staff_per_site)
-        
+        # Use a simple heuristic to estimate staff and sites
+        staff_needed = max(1, int(consented_agents / 50))  # Assume 1 staff per 50 consenting patients
+        sites_needed = max(1, int(consented_agents / 100))  # Assume 1 site per 100 consenting patients
         staff_requirements.append(staff_needed)
         site_recommendations.append(sites_needed)
 
@@ -105,34 +111,23 @@ def run_simulations(df, consent_rate_min, consent_rate_max, num_simulations):
         "mean_sites": mean_sites
     }
 
-# Function to scrape relevant trial data to provide average staff per site and patients per site
-def get_average_staff_per_site():
-    # Web scrape to gather average staff per site for clinical trials based on disease area focus
-    url = "https://clinicaltrials.gov/ct2/results?cond=" + health_issue_filter
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # Extract relevant information regarding staff requirements
-        # Note: This is a placeholder logic for demonstration purposes
-        staff_info = soup.find_all('td', class_='ct-table-data')
-        if staff_info:
-            avg_staff = len(staff_info) // 10  # Assume some logic to derive staff count per site
-            return max(1, avg_staff)
-    return 5  # Assume average of 5 staff per site
+# Function to scrape staff and sites requirements
+def webscrape_staff_sites():
+    try:
+        # Example webscraping to get staff and sites requirements
+        response = requests.get("https://example.com/staff_sites")
+        soup = BeautifulSoup(response.text, "html.parser")
 
-def get_average_patients_per_site():
-    # Web scrape to gather average patients per site for clinical trials based on disease area focus
-    url = "https://clinicaltrials.gov/ct2/results?cond=" + health_issue_filter
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # Extract relevant information regarding patient enrollment
-        # Note: This is a placeholder logic for demonstration purposes
-        patient_info = soup.find_all('td', class_='ct-table-data')
-        if patient_info:
-            avg_patients = len(patient_info) // 5  # Assume some logic to derive patients count per site
-            return max(1, avg_patients)
-    return 20  # Assume average of 20 patients per site
+        # Assuming the data is in some table format
+        staff_data = soup.find("span", {"id": "staff_needed"}).text
+        sites_data = soup.find("span", {"id": "sites_needed"}).text
+
+        return int(staff_data), int(sites_data)
+    
+    except Exception as e:
+        # Fallback if scraping fails
+        st.warning("Unable to retrieve staff and sites requirements via webscraping.")
+        return None, None
 
 # Streamlit App Configuration
 st.set_page_config(page_title="Patient Recruitment Simulation", layout="wide")
@@ -158,7 +153,33 @@ data_file = st.file_uploader("Connect to EMR", type=["csv", "tsv"], label_visibi
 if data_file is not None:
     df = pl.read_csv(data_file)
     df_normalized = normalize_columns(df, column_mapping)
-    st.write("Data Preview:", df_normalized.head().to_pandas())
+
+    # Filtering based on inputs from Streamlit
+    if st.checkbox("Target by Age Group"):
+        df_normalized = df_normalized.filter(pl.col("age") > 18)  # Example filter
+    
+    if st.checkbox("Target by Gender"):
+        df_normalized = df_normalized.filter(pl.col("gender") == "Female")  # Example filter
+    
+    if st.checkbox("Target by Ethnicity"):
+        ethnicity_conditions = []
+        if st.checkbox('African American'):
+            ethnicity_conditions.append(pl.col("race_ethnicity") == "AfricanAmerican")
+        if st.checkbox('Caucasian'):
+            ethnicity_conditions.append(pl.col("race_ethnicity") == "Caucasian")
+        if st.checkbox('Hispanic'):
+            ethnicity_conditions.append(pl.col("race_ethnicity") == "Hispanic")
+        if st.checkbox('Asian'):
+            ethnicity_conditions.append(pl.col("race_ethnicity") == "Asian")
+        
+        # Apply combined ethnicity filter
+        if ethnicity_conditions:
+            df_normalized = df_normalized.filter(
+                pl.any([cond for cond in ethnicity_conditions])
+            )
+    
+    # Display filtered DataFrame
+    st.write("Filtered Data Preview:", df_normalized.head().to_pandas())
 
     # Input elements for recruitment settings
     st.subheader("Recruitment Settings")
@@ -178,19 +199,6 @@ if data_file is not None:
 
     # Dropdown search for location
     location = st.selectbox("Enter Location (State)", ['Alabama','Alaska','American Samoa','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','District of Columbia','Florida','Georgia','Guam','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Marshall Islands','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Northern Mariana Islands','Ohio','Oklahoma','Oregon','Palau','Pennsylvania','Puerto Rico','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virgin Island','Virginia','Washington','West Virginia','Wisconsin','Wyoming'])
-
-    # Demographic targeting checkboxes
-    st.subheader("Demographic Targeting")
-    age_group = st.checkbox("Target by Age Group")
-    gender = st.checkbox("Target by Gender")
-    ethnicity = st.checkbox("Target by Ethnicity")
-    if ethnicity:
-        st.text('Select Targeted Demographics')
-        include_african = st.checkbox('African American')
-        include_caucasian = st.checkbox('Caucasian')
-        include_hispanic = st.checkbox('Hispanic')
-        include_asian = st.checkbox('Asian')
-        include_other = st.checkbox('Other')
 
     # Number input for study size
     study_size = st.number_input("Study Size", min_value=1, max_value=10000, value=100)
