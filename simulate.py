@@ -61,7 +61,7 @@ class RecruitmentModel(Model):
     def is_targeted(self, agent):
         # Check if agent matches targeted demographics
         if 'age' in self.targeted_demographics and not (18 <= agent.age <= 80):
-            return False
+            return False      
         if 'gender' in self.targeted_demographics and agent.gender not in self.targeted_demographics['gender']:
             return False
         if 'race' in self.targeted_demographics and agent.race not in self.targeted_demographics['race']:
